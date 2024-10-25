@@ -1386,5 +1386,3 @@ function GenSub(userID_path, hostname) {
 
 	return result.join('\n');
 }
-
-const hostnames = ['m.youtube.com'];
