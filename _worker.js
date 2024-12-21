@@ -1,496 +1,121 @@
+// Please comply with local laws when using.
+// Path /sub View subscription information.
+
 import { connect } from 'cloudflare:sockets';
-const listProxy = [
-    { path: '/tes1', proxy: '172.232.238.169' },
-    { path: '/tes2', proxy: '52.141.25.42'},
-];
-let proxyIP;
+
+const userID = '55940c6e-a8b1-43ab-b8ee-e3563b44a71e';
+
+const bestIP = ""; // 空字符串表示未设置
+const proxyIPs = ["125.7.24.251"];
+
+const proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
+
+if (!isValidUUID(userID)) {
+	throw new Error('The uuid is not set');
+}
+
+// 将 main 移到全局作用域
+let main = bestIP || proxyIP;
+
 export default {
-    async fetch(request, ctx) {
-      try {
-        proxyIP = proxyIP;
-        const url = new URL(request.url);
-        const upgradeHeader = request.headers.get('Upgrade');
-        for (const entry of listProxy) {
-          if (url.pathname === entry.path) {
-            proxyIP = entry.proxy;
-            break;
-          }
-        }
-        if (upgradeHeader === 'websocket' && proxyIP) {
-          return await vlessOverWSHandler(request);
-        }
-        const allConfig = await getAllConfigVless(request.headers.get('Host'));
-        return new Response(allConfig, {
-          status: 200,
-          headers: { "Content-Type": "text/html;charset=utf-8" },
-        });
-      } catch (err) {
-        return new Response(err.toString(), { status: 500 });
-      }
-    },
-  };
-async function getAllConfigVless(hostName) {
-    try {
-        let vlessConfigs = '';
-        let clashConfigs = '';
-        for (const entry of listProxy) {
-            const { path, proxy } = entry;
-            const response = await fetch(`http://ip-api.com/json/${proxy}`);
-            const data = await response.json();
-            const pathFixed = encodeURIComponent(path);
-            const vlessTls = `vless://${generateUUIDv4()}\u0040${hostName}:443?encryption=none&security=tls&sni=${hostName}&type=ws&host=${hostName}&path=${pathFixed}#${data.isp} (${data.countryCode})`;
-            const vlessNtls = `vless://${generateUUIDv4()}\u0040${hostName}:80?path=${pathFixed}&security=none&encryption=none&host=${hostName}&type=ws&sni=${hostName}#${data.isp} (${data.countryCode})`;
-            const vlessTlsFixed = vlessTls.replace(/ /g, '+');
-            const vlessNtlsFixed = vlessNtls.replace(/ /g, '+');
-            const clashConfTls = 
-`- name: ${data.isp} (${data.countryCode})
-  server: ${hostName}
-  port: 443
-  type: vless
-  uuid: ${generateUUIDv4()}
-  cipher: auto
-  tls: true
-  skip-cert-verify: true
-  network: ws
-  servername: ${hostName}
-  ws-opts:
-    path: ${path}
-    headers:
-      Host: ${hostName}
-  udp: true`;
-             const clashConfNtls =
-`- name: ${data.isp} (${data.countryCode})
-  server: ${hostName}
-  port: 80
-  type: vless
-  uuid: ${generateUUIDv4()}
-  cipher: auto
-  tls: false
-  skip-cert-verify: true
-  network: ws
-  ws-opts:
-    path: ${path}
-    headers:
-      Host: ${hostName}
-  udp: true`;
-            clashConfigs += `
-<div style="display: none;">
-   <textarea id="clashTls${path}">${clashConfTls}</textarea>
- </div>
-<div style="display: none;">
-   <textarea id="clashNtls${path}">${clashConfNtls}</textarea>
- </div>
-<div class="config-section" style="background-color: rgba(10, 10, 10, 0.8); color: #00ff00; border: 2px solid #00ff00;">
-    <p style="color: #00ff00;"><strong>ISP:</strong> ${data.isp} (${data.countryCode})</p>
-    <hr style="border-color: #00ff00; width: 100%; margin-left: auto; margin-right: auto;" />
-    <div class="config-toggle">
-        <button class="button" onclick="toggleConfig(this, 'Tap Here To Show Configurations', 'Tap Here To Hide')">Tap Here To Show Configurations</button>
-        <div class="config-content">
-            <div class="config-block" style="background-color: rgba(0, 0, 0, 0.3);">
-                <h3 style="color: #00ff00;">TLS:</h3>
-                <p class="config">${clashConfTls}</p>
-                <button class="button" onclick='copyClash("clashTls${path}")'><i class="fa fa-clipboard"></i>Copy</button>
-            </div>
-            <hr style="border-color: #00ff00; width: 75%; margin-left: auto; margin-right: auto;" />
-            <div class="config-block" style="background-color: rgba(0, 0, 0, 0.3);">
-                <h3 style="color: #00ff00;">NTLS:</h3>
-                <p class="config">${clashConfNtls}</p>
-                <button class="button" onclick='copyClash("clashNtls${path}")'><i class="fa fa-clipboard"></i>Copy</button>
-            </div>
-        </div>
-    </div>
-</div>
-<hr class="config-divider" style="background: linear-gradient(to right, transparent, #00ff00, transparent); margin: 40px 0;" />
-`;
+	async fetch(request, env, ctx) {
+		try {
+			const upgradeHeader = request.headers.get('Upgrade');
+			const url = new URL(request.url);
 
-vlessConfigs += `
-<div class="config-section" style="background-color: rgba(10, 10, 10, 0.8); color: #00ff00; border: 2px solid #00ff00;">
-    <p style="color: #00ff00;"><strong>ISP:</strong> ${data.isp} (${data.countryCode})</p>
-    <hr style="border-color: #00ff00; width: 100%; margin-left: auto; margin-right: auto;" />
-    <div class="config-toggle">
-        <button class="button" onclick="toggleConfig(this, 'Tap Here To Show Account', 'Tap Here To Hide')">Tap Here To Show Account</button>
-        <div class="config-content">
-            <div class="config-block" style="background-color: rgba(0, 0, 0, 0.3);">
-                <h3 style="color: #00ff00;">TLS:</h3>
-                <p class="config" style="color: #00ff00;">${vlessTlsFixed}</p>
-                <button class="button" onclick='copyToClipboard("${vlessTlsFixed}")'><i class="fa fa-clipboard"></i>Copy</button>
-            </div>
-            <hr style="border-color: #00ff00; width: 75%; margin-left: auto; margin-right: auto;" />
-            <div class="config-block" style="background-color: rgba(0, 0, 0, 0.3);">
-                <h3 style="color: #00ff00;">NTLS:</h3>
-                <p class="config" style="color: #00ff00;">${vlessNtlsFixed}</p>
-                <button class="button" onclick='copyToClipboard("${vlessNtlsFixed}")'><i class="fa fa-clipboard"></i>Copy</button>
-            </div>
-        </div>
-    </div>
-</div>
-<hr class="config-divider" style="background: linear-gradient(to right, transparent, #00ff00, transparent); margin: 40px 0;" />
-`;
-}
-        const htmlConfigs = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLOUDFLARE PROXY</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha512-Fo3rlrZj/k7ujTnHg4C+6PCWJ+8zzHcXQjXGp6n5Yh9rX0x5fOdPaOqO+e2X4R5C1aE/BSqPIG+8y3O6APa8w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
-        body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Roboto', monospace;
-    background-color: #0c0c0c;
-    color: #00ff00;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-}
-.container {
-    height: 100%;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 0;
-    padding: 30px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    animation: fadeIn 1s ease-in-out;
-    overflow-y: auto;
-    box-sizing: border-box;
-}
-.overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: -1;
-        }
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-        }
-.header {
-    text-align: center;
-    margin-bottom: 20px;
-        }
-.profile-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
+			if (url.pathname === '/sub') {
+				const allLinks = generateAllLinks(url.host);
+				const base64Links = btoa(allLinks.join('\n'));
+				return new Response(base64Links, {
+					status: 200,
+					headers: {
+						"Content-Type": "text/plain;charset=utf-8"
+					}
+				});
+			}
+
+			if (!upgradeHeader || upgradeHeader !== 'websocket') {
+				switch (url.pathname) {
+					case '/':
+						const responseText = generateResponseText(request.cf, url.host);
+						return new Response(responseText, {
+							status: 200,
+							headers: {
+								"Content-Type": "text/plain;charset=utf-8"
+							}
+						});
+					default:
+						return new Response('Not found', {
+							status: 404
+						});
+				}
+			} else {
+				return await ymyuuuOverWSHandler(request);
+			}
+		} catch (err) {
+			let e = err;
+			return new Response(e.toString());
 		}
-.profile-pic {
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
-    margin: 0;
-		}
-.profile-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-}
-.profile-name {
-    color: #00ff00;
-    font-size: 20px;
-    text-align: center;
-    margin-top: 30px;
-    margin-bottom: 3px;
-    text-shadow: 0 0 5px rgba(0, 255, 0, 0.7);
-}
-.header h1 {
-    font-size: 24px;
-    text-align: center;
-    text-transform: uppercase;
-    margin: 0;
-    text-shadow: 0 0 10px #00ff00;
-        }
-.nav-buttons {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 30px;
-    gap: 20px;
-        }
-.nav-buttons .button {
-    background-color: transparent;
-    border: 2px solid #00ff00;
-    color: #00ff00;
-    padding: 6px 12px;
-    font-size: 10px;
-    border-radius: 0;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-        }
-.nav-buttons .button:hover {
-    background-color: #00ff00;
-    color: black;
-    transform: scale(1.05);
-        }
-.content {
-    display: none;
-        }
-.content.active {
-    display: block;
-        }
-.config-section {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 10px;
-    margin-bottom: 20px;
-    position: relative;
-    animation: slideIn 0.5s ease-in-out;
-        }
-@keyframes slideIn {
-    from { transform: translateX(-30px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-        }
-.config-section h3 {
-    margin-top: 0;
-    color: #00ff00; 
-    font-size: 28px;
-        }
-.config-section p {
-    color: #00ff00;
-    font-size: 16px;
-        }
-.config-toggle {
-    margin-bottom: 20px;
-        }
-.config-content {
-    display: none;
-        }
-.config-content.active {
-    display: block;
-        }
-.config-block {
-    margin-bottom: 20px;
-    padding: 15px;
-    background-color: rgba(0, 0, 0, 0.3);
-    transition: background-color 0.3s ease;
-        }
-.config-block h4 {
-    margin-bottom: 8px;
-    color: #00ff00; 
-    font-size: 22px;
-    font-weight: 600;
-        }
-.config {
-    background-color: rgba(0, 0, 0, 0.4);
-    padding: 10px;
-    border-radius: 0;
-    border: 1px solid #00ff00;
-    color: #f5f5f5;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 15px;
-        }
-.button {
-    background-color: transparent;
-    color: #00ff00;
-    border: 2px solid #00ff00;
-    padding: 10px 20px;
-    margin: 10px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-        }
-.button i {
-    margin-right: 3px;
-        }
-.button:hover {
-    background-color: #00ff00;
-    color: black;
-        }
-.config-divider {
-    border: none;
-    height: 1px;
-    background: linear-gradient(to right, transparent, #00ff00, transparent);
-    margin: 40px 0;
-        }
-@media (max-width: 768px) {
-    .header h1 {
-        font-size: 28px;
-    }
-    .config-section h3 {
-        font-size: 24px;
-    }
-    .config-block h4 {
-        font-size: 20px;
-    }
-        }
-    </style>
-</head>
-<body>
-    <div class="overlay"></div>
-    <div class="container">
-        <div class="header">
-            <div class="profile-container">
-				<img src="https://avatars.githubusercontent.com/u/61716582?v=4" alt="VLESS CLOUDFLARE" class="profile-pic">
-				<h2 class="profile-name">SONZAIX VLESS</h2>
-			</div>
-        </div>
-        <div class="nav-buttons">
-            <button class="button" onclick="showContent('vless')">VLESS MENU</button>
-            <button class="button" onclick="showContent('clash')">CLASH MENU</button>
-			<button class="button" onclick="showContent('info')">INFO</button>
-        </div>
-        <div id="vless" class="content active">
-            ${vlessConfigs}
-        </div>
-        <div id="clash" class="content">
-            ${clashConfigs}
-        </div>
-		<div id="info" class="content">
-			<p>Workers ini baru support wildcard <strong>support.zoom.us</strong></p>
-			<p>Jika kalian ingin menambah domain agar support wildcard di vless ini, silakan chat di Telegram: <a href="https://t.me/November2k" target="_blank" style="color: #00ff00; text-decoration: none;">Sonzai X シ</a></p>
-			<!-- Tambahkan tombol CHAT di sini -->
-			<a href="https://t.me/november2k" target="_blank">
-				<button class="button" style="margin-top: 10px;">CHAT</button>
-			</a>
-		</div>
-    </div>
+	},
+};
 
-    <script>
-        function showContent(contentId) {
-            const contents = document.querySelectorAll('.content');
-            contents.forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(contentId).classList.add('active');
-        }
-        function salinTeks() {
-            var teks = document.getElementById('teksAsli');
-            teks.select();
-            document.execCommand('copy');
-            alert('Teks telah disalin.');
-        }
-        function copyClash(elementId) {
-            const text = document.getElementById(elementId).textContent;
-            navigator.clipboard.writeText(text)
-            .then(() => {
-                const alertBox = document.createElement('div');
-                alertBox.textContent = "Copied to clipboard!";
-                alertBox.style.position = 'fixed';
-                alertBox.style.bottom = '20px';
-                alertBox.style.right = '20px';
-                alertBox.style.backgroundColor = 'green';
-                alertBox.style.color = '#fff';
-                alertBox.style.padding = '10px 20px';
-                alertBox.style.borderRadius = '5px';
-                alertBox.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-                alertBox.style.opacity = '0';
-                alertBox.style.transition = 'opacity 0.5s ease-in-out';
-                document.body.appendChild(alertBox);
-                setTimeout(() => {
-                    alertBox.style.opacity = '1';
-                }, 100);
-                setTimeout(() => {
-                    alertBox.style.opacity = '0';
-                    setTimeout(() => {
-                        document.body.removeChild(alertBox);
-                    }, 500);
-                }, 2000);
-            })
-            .catch((err) => {
-                console.error("Failed to copy to clipboard:", err);
-            });
-        }
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text)
-                .then(() => {
-                    const alertBox = document.createElement('div');
-                    alertBox.textContent = "Copied to clipboard!";
-                    alertBox.style.position = 'fixed';
-                    alertBox.style.bottom = '20px';
-                    alertBox.style.right = '20px';
-                    alertBox.style.backgroundColor = 'green';
-                    alertBox.style.color = '#fff';
-                    alertBox.style.padding = '10px 20px';
-                    alertBox.style.borderRadius = '5px';
-                    alertBox.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-                    alertBox.style.opacity = '0';
-                    alertBox.style.transition = 'opacity 0.5s ease-in-out';
-                    document.body.appendChild(alertBox);
-                    setTimeout(() => {
-                        alertBox.style.opacity = '1';
-                    }, 100);
-                    setTimeout(() => {
-                        alertBox.style.opacity = '0';
-                        setTimeout(() => {
-                            document.body.removeChild(alertBox);
-                        }, 500);
-                    }, 2000);
-                })
-                .catch((err) => {
-                    console.error("Failed to copy to clipboard:", err);
-                });
-        }
+function generateResponseText(cf, host) {
+	// 获取请求中的 Cloudflare 特定数据
+	const cloudflareData = JSON.stringify(cf, null, 2);
+	const additionalData = `GitHub: https://github.com/ymyuuu\nTelegram: https://t.me/HeroCore\n\nHost: ${host}${bestIP ? '\nBestIP: ' + bestIP : ''}\nProxyIP: ${proxyIP}\nUUID: ${userID}`;
+	let responseText = `${cloudflareData}\n\n${additionalData}`;
 
-        function toggleConfig(button, show, hide) {
-            const configContent = button.nextElementSibling;
-            if (configContent.classList.contains('active')) {
-                configContent.classList.remove('active');
-                button.textContent = show;
-            } else {
-                configContent.classList.add('active');
-                button.textContent = hide;
-            }
-        }
-    </script>
-</body>
-</html>`;
-        return htmlConfigs;
-    } catch (error) {
-        return `An error occurred while generating the VLESS configurations. ${error}`;
-    }
+	const isWorkersDev = host.endsWith('workers.dev');
+	if (isWorkersDev) {
+		const httpLinks = generateLinks(host, [80, 8080, 8880, 2052, 2086, 2095], 'none', 'none');
+		responseText += `\n\nHTTP Port: 80, 8080, 8880, 2052, 2086, 2095\n${httpLinks.join('\n')}`;
+	} else {
+		const httpsLinks = generateLinks(host, [443, 8443, 2053, 2096, 2087, 2083], 'none', 'tls', true);
+		responseText += `\n\nHTTPS Port: 443, 8443, 2053, 2096, 2087, 2083\n${httpsLinks.join('\n')}`;
+	}
+
+	return responseText;
 }
-function generateUUIDv4() {
-  const randomValues = crypto.getRandomValues(new Uint8Array(16));
-  randomValues[6] = (randomValues[6] & 0x0f) | 0x40;
-  randomValues[8] = (randomValues[8] & 0x3f) | 0x80;
-  return [
-    randomValues[0].toString(16).padStart(2, '0'),
-    randomValues[1].toString(16).padStart(2, '0'),
-    randomValues[2].toString(16).padStart(2, '0'),
-    randomValues[3].toString(16).padStart(2, '0'),
-    randomValues[4].toString(16).padStart(2, '0'),
-    randomValues[5].toString(16).padStart(2, '0'),
-    randomValues[6].toString(16).padStart(2, '0'),
-    randomValues[7].toString(16).padStart(2, '0'),
-    randomValues[8].toString(16).padStart(2, '0'),
-    randomValues[9].toString(16).padStart(2, '0'),
-    randomValues[10].toString(16).padStart(2, '0'),
-    randomValues[11].toString(16).padStart(2, '0'),
-    randomValues[12].toString(16).padStart(2, '0'),
-    randomValues[13].toString(16).padStart(2, '0'),
-    randomValues[14].toString(16).padStart(2, '0'),
-    randomValues[15].toString(16).padStart(2, '0')
-].join('').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+
+function generateLinks(host, ports, encryption, security, isHTTPS = false) {
+    const protocol = "dmxlc3M="; // Base64 编码后的字符串 "dmxlc3M="
+	return ports.map(port =>
+		`${atob(protocol)}://${userID}@${main}:${port}?encryption=${encryption}&security=${security}${isHTTPS ? `&sni=${host}` : ''}&fp=random&type=ws&host=${host}&path=%2F%3D2048#CFW_${port}`
+	);
 }
-async function vlessOverWSHandler(request) {
+
+function generateAllLinks(host) {
+	const isWorkersDev = host.endsWith('workers.dev');
+	if (isWorkersDev) {
+		return generateLinks(host, [80, 8080, 8880, 2052, 2086, 2095], 'none', 'none');
+	} else {
+		return generateLinks(host, [443, 8443, 2053, 2096, 2087, 2083], 'none', 'tls', true);
+	}
+}
+
+async function ymyuuuOverWSHandler(request) {
+
 	const webSocketPair = new WebSocketPair();
 	const [client, webSocket] = Object.values(webSocketPair);
+
 	webSocket.accept();
+
 	let address = '';
 	let portWithRandomLog = '';
-	const log = (info, event) => {
+	const log = ( /** @type {string} */ info, /** @type {string | undefined} */ event) => {
 		console.log(`[${address}:${portWithRandomLog}] ${info}`, event || '');
 	};
 	const earlyDataHeader = request.headers.get('sec-websocket-protocol') || '';
+
 	const readableWebSocketStream = makeReadableWebSocketStream(webSocket, earlyDataHeader, log);
+
 	let remoteSocketWapper = {
 		value: null,
 	};
 	let udpStreamWrite = null;
 	let isDns = false;
+
+	// ws --> remote
 	readableWebSocketStream.pipeTo(new WritableStream({
 		async write(chunk, controller) {
 			if (isDns && udpStreamWrite) {
@@ -502,39 +127,46 @@ async function vlessOverWSHandler(request) {
 				writer.releaseLock();
 				return;
 			}
+
 			const {
 				hasError,
 				message,
 				portRemote = 443,
 				addressRemote = '',
 				rawDataIndex,
-				vlessVersion = new Uint8Array([0, 0]),
+				ymyuuuVersion = new Uint8Array([0, 0]),
 				isUDP,
-			} = processVlessHeader(chunk);
+			} = processymyuuuHeader(chunk, userID);
 			address = addressRemote;
 			portWithRandomLog = `${portRemote}--${Math.random()} ${isUDP ? 'udp ' : 'tcp '
 				} `;
 			if (hasError) {
-				throw new Error(message); 
+				throw new Error(message);
 				return;
 			}
 			if (isUDP) {
 				if (portRemote === 53) {
 					isDns = true;
 				} else {
-					throw new Error('UDP proxy only enable for DNS which is port 53');
+					throw new Error(
+						'UDP proxy only enable for DNS which is port 53'
+					);
 					return;
 				}
 			}
-			const vlessResponseHeader = new Uint8Array([vlessVersion[0], 0]);
+			const ymyuuuResponseHeader = new Uint8Array([ymyuuuVersion[0], 0]);
 			const rawClientData = chunk.slice(rawDataIndex);
+
 			if (isDns) {
-				const { write } = await handleUDPOutBound(webSocket, vlessResponseHeader, log);
+				const {
+					write
+				} = await handleUDPOutBound(webSocket, ymyuuuResponseHeader, log);
 				udpStreamWrite = write;
 				udpStreamWrite(rawClientData);
 				return;
 			}
-			handleTCPOutBound(remoteSocketWapper, addressRemote, portRemote, rawClientData, webSocket, vlessResponseHeader, log);
+			handleTCPOutBound(remoteSocketWapper, addressRemote, portRemote, rawClientData,
+				webSocket, ymyuuuResponseHeader, log);
 		},
 		close() {
 			log(`readableWebSocketStream is close`);
@@ -551,7 +183,11 @@ async function vlessOverWSHandler(request) {
 		webSocket: client,
 	});
 }
-async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawClientData, webSocket, vlessResponseHeader, log,) {
+
+
+async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawClientData, webSocket, ymyuuuResponseHeader,
+	log, ) {
+
 	async function connectAndWrite(address, port) {
 		const tcpSocket = connect({
 			hostname: address,
@@ -564,52 +200,60 @@ async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawCli
 		writer.releaseLock();
 		return tcpSocket;
 	}
+
 	async function retry() {
 		const tcpSocket = await connectAndWrite(proxyIP || addressRemote, portRemote)
-		tcpSocket.closed.catch(error => {
+		tcpSocket.closed.catch(( /** @type {any} */ error) => {
 			console.log('retry tcpSocket closed error', error);
 		}).finally(() => {
 			safeCloseWebSocket(webSocket);
 		})
-		remoteSocketToWS(tcpSocket, webSocket, vlessResponseHeader, null, log);
+		remoteSocketToWS(tcpSocket, webSocket, ymyuuuResponseHeader, null, log);
 	}
+
 	const tcpSocket = await connectAndWrite(addressRemote, portRemote);
 
-	remoteSocketToWS(tcpSocket, webSocket, vlessResponseHeader, retry, log);
+	remoteSocketToWS(tcpSocket, webSocket, ymyuuuResponseHeader, retry, log);
 }
+
+
 function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
 	let readableStreamCancel = false;
 	const stream = new ReadableStream({
 		start(controller) {
-			webSocketServer.addEventListener('message', (event) => {
+			webSocketServer.addEventListener('message', ( /** @type {{ data: any; }} */ event) => {
 				if (readableStreamCancel) {
 					return;
 				}
 				const message = event.data;
 				controller.enqueue(message);
 			});
+
+
 			webSocketServer.addEventListener('close', () => {
 				safeCloseWebSocket(webSocketServer);
 				if (readableStreamCancel) {
 					return;
 				}
 				controller.close();
-			}
-			);
-			webSocketServer.addEventListener('error', (err) => {
+			});
+			webSocketServer.addEventListener('error', ( /** @type {any} */ err) => {
 				log('webSocketServer has error');
 				controller.error(err);
-			}
-			);
-			const { earlyData, error } = base64ToArrayBuffer(earlyDataHeader);
+			});
+			// for ws 0rtt
+			const {
+				earlyData,
+				error
+			} = base64ToArrayBuffer(earlyDataHeader);
 			if (error) {
 				controller.error(error);
 			} else if (earlyData) {
 				controller.enqueue(earlyData);
 			}
 		},
-		pull(controller) {
-		},
+
+		pull(controller) {},
 		cancel(reason) {
 			if (readableStreamCancel) {
 				return;
@@ -619,32 +263,41 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
 			safeCloseWebSocket(webSocketServer);
 		}
 	});
+
 	return stream;
+
 }
-function processVlessHeader(
-	vlessBuffer
+
+function processymyuuuHeader(
+	ymyuuuBuffer,
+	userID
 ) {
-	if (vlessBuffer.byteLength < 24) {
+	if (ymyuuuBuffer.byteLength < 24) {
 		return {
 			hasError: true,
 			message: 'invalid data',
 		};
 	}
-	const version = new Uint8Array(vlessBuffer.slice(0, 1));
-	let isValidUser = true;
+	const version = new Uint8Array(ymyuuuBuffer.slice(0, 1));
+	let isValidUser = false;
 	let isUDP = false;
+	if (stringify(new Uint8Array(ymyuuuBuffer.slice(1, 17))) === userID) {
+		isValidUser = true;
+	}
 	if (!isValidUser) {
 		return {
 			hasError: true,
 			message: 'invalid user',
 		};
 	}
-	const optLength = new Uint8Array(vlessBuffer.slice(17, 18))[0];
+
+	const optLength = new Uint8Array(ymyuuuBuffer.slice(17, 18))[0];
+
 	const command = new Uint8Array(
-		vlessBuffer.slice(18 + optLength, 18 + optLength + 1)
+		ymyuuuBuffer.slice(18 + optLength, 18 + optLength + 1)
 	)[0];
-	if (command === 1) {
-	} else if (command === 2) {
+
+	if (command === 1) {} else if (command === 2) {
 		isUDP = true;
 	} else {
 		return {
@@ -653,12 +306,14 @@ function processVlessHeader(
 		};
 	}
 	const portIndex = 18 + optLength + 1;
-	const portBuffer = vlessBuffer.slice(portIndex, portIndex + 2);
+	const portBuffer = ymyuuuBuffer.slice(portIndex, portIndex + 2);
 	const portRemote = new DataView(portBuffer).getUint16(0);
+
 	let addressIndex = portIndex + 2;
 	const addressBuffer = new Uint8Array(
-		vlessBuffer.slice(addressIndex, addressIndex + 1)
+		ymyuuuBuffer.slice(addressIndex, addressIndex + 1)
 	);
+
 	const addressType = addressBuffer[0];
 	let addressLength = 0;
 	let addressValueIndex = addressIndex + 1;
@@ -667,22 +322,22 @@ function processVlessHeader(
 		case 1:
 			addressLength = 4;
 			addressValue = new Uint8Array(
-				vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength)
+				ymyuuuBuffer.slice(addressValueIndex, addressValueIndex + addressLength)
 			).join('.');
 			break;
 		case 2:
 			addressLength = new Uint8Array(
-				vlessBuffer.slice(addressValueIndex, addressValueIndex + 1)
+				ymyuuuBuffer.slice(addressValueIndex, addressValueIndex + 1)
 			)[0];
 			addressValueIndex += 1;
 			addressValue = new TextDecoder().decode(
-				vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength)
+				ymyuuuBuffer.slice(addressValueIndex, addressValueIndex + addressLength)
 			);
 			break;
 		case 3:
 			addressLength = 16;
 			const dataView = new DataView(
-				vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength)
+				ymyuuuBuffer.slice(addressValueIndex, addressValueIndex + addressLength)
 			);
 			const ipv6 = [];
 			for (let i = 0; i < 8; i++) {
@@ -693,7 +348,7 @@ function processVlessHeader(
 		default:
 			return {
 				hasError: true,
-				message: `invild  addressType is ${addressType}`,
+					message: `invild  addressType is ${addressType}`,
 			};
 	}
 	if (!addressValue) {
@@ -702,26 +357,27 @@ function processVlessHeader(
 			message: `addressValue is empty, addressType is ${addressType}`,
 		};
 	}
+
 	return {
 		hasError: false,
 		addressRemote: addressValue,
 		addressType,
 		portRemote,
 		rawDataIndex: addressValueIndex + addressLength,
-		vlessVersion: version,
+		ymyuuuVersion: version,
 		isUDP,
 	};
 }
-async function remoteSocketToWS(remoteSocket, webSocket, vlessResponseHeader, retry, log) {
+
+async function remoteSocketToWS(remoteSocket, webSocket, ymyuuuResponseHeader, retry, log) {
 	let remoteChunkCount = 0;
 	let chunks = [];
-	let vlessHeader = vlessResponseHeader;
+	let ymyuuuHeader = ymyuuuResponseHeader;
 	let hasIncomingData = false;
 	await remoteSocket.readable
 		.pipeTo(
 			new WritableStream({
-				start() {
-				},
+				start() {},
 				async write(chunk, controller) {
 					hasIncomingData = true;
 					if (webSocket.readyState !== WS_READY_STATE_OPEN) {
@@ -729,9 +385,9 @@ async function remoteSocketToWS(remoteSocket, webSocket, vlessResponseHeader, re
 							'webSocket.readyState is not open, maybe close'
 						);
 					}
-					if (vlessHeader) {
-						webSocket.send(await new Blob([vlessHeader, chunk]).arrayBuffer());
-						vlessHeader = null;
+					if (ymyuuuHeader) {
+						webSocket.send(await new Blob([ymyuuuHeader, chunk]).arrayBuffer());
+						ymyuuuHeader = null;
 					} else {
 						webSocket.send(chunk);
 					}
@@ -744,33 +400,49 @@ async function remoteSocketToWS(remoteSocket, webSocket, vlessResponseHeader, re
 				},
 			})
 		)
-		.catch((error) => {
+		.catch(( /** @type {{ stack: any; }} */ error) => {
 			console.error(
 				`remoteSocketToWS has exception `,
 				error.stack || error
 			);
 			safeCloseWebSocket(webSocket);
 		});
+
 	if (hasIncomingData === false && retry) {
 		log(`retry`)
 		retry();
 	}
 }
+
 function base64ToArrayBuffer(base64Str) {
 	if (!base64Str) {
-		return { error: null };
+		return {
+			error: null
+		};
 	}
 	try {
 		base64Str = base64Str.replace(/-/g, '+').replace(/_/g, '/');
 		const decode = atob(base64Str);
 		const arryBuffer = Uint8Array.from(decode, (c) => c.charCodeAt(0));
-		return { earlyData: arryBuffer.buffer, error: null };
+		return {
+			earlyData: arryBuffer.buffer,
+			error: null
+		};
 	} catch (error) {
-		return { error };
+		return {
+			error
+		};
 	}
 }
+
+function isValidUUID(uuid) {
+	const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+	return uuidRegex.test(uuid);
+}
+
 const WS_READY_STATE_OPEN = 1;
 const WS_READY_STATE_CLOSING = 2;
+
 function safeCloseWebSocket(socket) {
 	try {
 		if (socket.readyState === WS_READY_STATE_OPEN || socket.readyState === WS_READY_STATE_CLOSING) {
@@ -780,10 +452,34 @@ function safeCloseWebSocket(socket) {
 		console.error('safeCloseWebSocket error', error);
 	}
 }
-async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
-	let isVlessHeaderSent = false;
+
+const byteToHex = [];
+for (let i = 0; i < 256; ++i) {
+	byteToHex.push((i + 256).toString(16).slice(1));
+}
+
+function unsafeStringify(arr, offset = 0) {
+	return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[
+			offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[
+			offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset +
+			9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] +
+		byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
+}
+
+function stringify(arr, offset = 0) {
+	const uuid = unsafeStringify(arr, offset);
+	if (!isValidUUID(uuid)) {
+		throw TypeError("Stringified UUID is invalid");
+	}
+	return uuid;
+}
+
+async function handleUDPOutBound(webSocket, ymyuuuResponseHeader, log) {
+
+	let isymyuuuHeaderSent = false;
 	const transformStream = new TransformStream({
 		start(controller) {
+
 		},
 		transform(chunk, controller) {
 			for (let index = 0; index < chunk.byteLength;) {
@@ -796,29 +492,30 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
 				controller.enqueue(udpData);
 			}
 		},
-		flush(controller) {
-		}
+		flush(controller) {}
 	});
+
 	transformStream.readable.pipeTo(new WritableStream({
 		async write(chunk) {
-			const resp = await fetch('https://1.1.1.1/dns-query',
-				{
-					method: 'POST',
-					headers: {
-						'content-type': 'application/dns-message',
-					},
-					body: chunk,
-				})
+			const resp = await fetch('https://1.1.1.1/dns-query', {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/dns-message',
+				},
+				body: chunk,
+			})
 			const dnsQueryResult = await resp.arrayBuffer();
 			const udpSize = dnsQueryResult.byteLength;
 			const udpSizeBuffer = new Uint8Array([(udpSize >> 8) & 0xff, udpSize & 0xff]);
 			if (webSocket.readyState === WS_READY_STATE_OPEN) {
 				log(`doh success and dns message length is ${udpSize}`);
-				if (isVlessHeaderSent) {
+				if (isymyuuuHeaderSent) {
 					webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
 				} else {
-					webSocket.send(await new Blob([vlessResponseHeader, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
-					isVlessHeaderSent = true;
+					webSocket.send(await new Blob([ymyuuuResponseHeader, udpSizeBuffer,
+						dnsQueryResult
+					]).arrayBuffer());
+					isymyuuuHeaderSent = true;
 				}
 			}
 		}
@@ -826,6 +523,7 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
 		log('dns udp has error' + error)
 	});
 	const writer = transformStream.writable.getWriter();
+
 	return {
 		write(chunk) {
 			writer.write(chunk);
