@@ -1,6 +1,6 @@
 name = "rifky-cell"
 main = "_worker.js"
-compatibility_date = "2023-05-26"
+compatibility_date = "2025-01-09"
 # node_compat = true
 workers_dev = true
 
