@@ -4,7 +4,7 @@ import { connect } from 'cloudflare:sockets';
 
 const listProxy = [
     { path: '/vless1', proxy: '45.60.186.91' },
-    //{ path: '/123', proxy: '45.60.186.91' },
+    { path: '/8110', proxy: '45.60.186.91' },
     //tambahin sendiri
 ];
 let proxyIP;
