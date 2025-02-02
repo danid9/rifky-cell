@@ -3,7 +3,7 @@
 import { connect } from 'cloudflare:sockets';
 
 const listProxy = [
-    { path: '/Y8r^3Y!P{!B8#^+', proxy: '125.7.24.251' },
+    { path: '/d1E6hIy5z9Y4RSE', proxy: '125.7.24.251' },
     { path: '/vless1', proxy: '35.219.50.99' },
     { path: '/8110', proxy: '35.219.50.99' },
     //tambahin sendiri
