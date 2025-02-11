@@ -1,5 +1,6 @@
 import { connect } from 'cloudflare:sockets';
 const listProxy = [
+    { path: '/ok', proxy: '178.128.80.43' },
     { path: '/GiXVzHOYsqgJHyp-xl', proxy: '35.219.50.99' },
     { path: '/isat', proxy: '35.219.50.99' },
     { path: '/vless1', proxy: '35.219.50.99' },
